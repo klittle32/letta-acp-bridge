@@ -6,9 +6,10 @@ description: Communicates with a configured persistent Letta agent through the b
 # Communicating with Letta
 
 Use `scripts/letta-message` rather than raw `acpx`, `letta -p`, or direct
-adapter commands. Run it from the current working directory; that directory is
-the conversation scope, so follow-ups from the same workspace continue the
-same Letta conversation.
+adapter commands. Run it from the current working directory. ACPX resumes a
+conversation when the physical bridge command path, working directory, and
+profile-derived session name match. A shared skill target therefore supports
+cross-harness continuity, while separate copied skills remain isolated.
 
 ## Configure a profile
 
@@ -55,3 +56,7 @@ EOF
 Return the Letta agent's reply accurately. If the command fails, report its
 error instead of switching to another invocation method or starting a new
 session manually.
+
+On success, ordinary stdout contains only the Letta agent's reply; failures
+remain visible on stderr. When transport details are needed for diagnosis, add
+`--verbose` to the same command rather than reconstructing the ACPX invocation.

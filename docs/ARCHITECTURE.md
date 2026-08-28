@@ -51,20 +51,27 @@ profile name and a short fingerprint of the resolved profile. A changed
 same-name override therefore creates a new conversation instead of resuming one
 bound to a different target.
 
+The command path is intentionally meaningful. Harnesses that invoke one
+canonical skill target share a conversation for the same cwd and profile;
+separate copied skill directories create separate conversations. This permits
+either shared cross-harness continuity or harness-level isolation without a
+second routing system.
+
 ## Wrapper contract
 
 The wrapper supports an ordinary message exchange:
 
 ```text
-letta-message [--profile <name>] <message>
+letta-message [--verbose] [--profile <name>] <message>
 ```
 
 It:
 
 1. resolve the named/default user and project profile;
 2. ensure the intended session exists;
-3. send the message and return the final reply cleanly; and
-4. fail clearly when the exchange cannot be completed.
+3. send the message and return only the final reply by default;
+4. expose ACPX lifecycle output when `--verbose` is requested; and
+5. fail clearly when the exchange cannot be completed.
 
 The important boundary is that callers use the wrapper rather than rebuilding
 the ACPX and Letta configuration themselves.

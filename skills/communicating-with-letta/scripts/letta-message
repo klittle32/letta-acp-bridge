@@ -22,17 +22,22 @@ function executableOnPath(name, env = process.env) {
 
 function parseArgs(argv) {
   let profileName;
+  let verbose = false;
   const message = [];
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--profile") {
-      if (!argv[i + 1]) throw new Error("--profile requires a name");
+      if (!argv[i + 1] || ["--", "--profile", "--verbose"].includes(argv[i + 1])) {
+        throw new Error("--profile requires a name");
+      }
       profileName = argv[++i];
+    } else if (argv[i] === "--verbose") {
+      verbose = true;
     } else if (argv[i] === "--") {
       message.push(...argv.slice(i + 1));
       break;
     } else message.push(argv[i]);
   }
-  return { profileName, message: message.join(" ") };
+  return { profileName, verbose, message: message.join(" ") };
 }
 
 function run(command, args, { env, stdin, quiet = false }) {
@@ -54,7 +59,9 @@ try {
   const parsed = parseArgs(process.argv.slice(2));
   let message = parsed.message;
   if (!message && !process.stdin.isTTY) message = readFileSync(0, "utf8").trimEnd();
-  if (!message) throw new Error("Usage: letta-message [--profile <name>] <message>");
+  if (!message) {
+    throw new Error("Usage: letta-message [--verbose] [--profile <name>] <message>");
+  }
 
   const cwd = process.env.LETTA_MESSAGE_CWD || process.cwd();
   const resolved = resolveProfile({ cwd, profileName: parsed.profileName });
@@ -76,7 +83,9 @@ try {
   const configuredAcpx = process.env.ACPX_BIN;
   const installedAcpx = executableOnPath("acpx");
   const command = configuredAcpx || installedAcpx || "npx";
-  const prefix = configuredAcpx || installedAcpx ? [] : ["-y", "acpx"];
+  const prefix = configuredAcpx || installedAcpx
+    ? []
+    : ["-y", "--loglevel=error", "acpx"];
   const scriptDirectory = dirname(fileURLToPath(import.meta.url));
   const agent = join(scriptDirectory, "letta-acp-server");
 
@@ -89,7 +98,7 @@ try {
   await run(command, [
     ...prefix,
     "--cwd", cwd,
-    "--format", "text",
+    "--format", parsed.verbose ? "text" : "quiet",
     agent,
     "prompt", "--session", resolved.sessionName, "--file", "-",
   ], { env, stdin: `${message}\n` });

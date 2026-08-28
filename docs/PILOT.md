@@ -11,7 +11,7 @@ with a configured persistent Letta agent without knowing the raw ACPX or
 - Node.js is available.
 - Letta is authenticated for the selected backend.
 - The target persistent Letta agent ID is known.
-- The `communicating-with-letta` skill is installed in each calling harness.
+- The `communicating-with-letta` skill is available to each calling harness.
 
 ## Automated checks
 
@@ -28,6 +28,7 @@ These checks cover:
 - user and project setup scopes;
 - profile fingerprint changes after an override;
 - ACPX session selection and message forwarding;
+- clean ordinary output and explicit verbose output;
 - custom server argv preservation; and
 - safe adapter defaults.
 
@@ -37,8 +38,8 @@ These checks cover:
 2. From one coding harness, use the skill to send a message containing a unique
    marker.
 3. Send a follow-up and confirm the same Letta conversation recalls the marker.
-4. From another harness in the same workspace, ask for the marker without
-   repeating it.
+4. From another harness using the same physical skill target in the same
+   workspace, ask for the marker without repeating it.
 5. Add a same-name project override and confirm the internal fingerprint and
    Letta conversation change.
 
@@ -47,7 +48,8 @@ These checks cover:
 The pilot succeeds when:
 
 - both harnesses use the same portable procedure;
-- same-workspace, same-profile follow-ups continue one Letta conversation;
+- same-command, same-workspace, same-profile follow-ups continue one Letta
+  conversation;
 - a changed resolved profile cannot resume the old target's conversation; and
 - no credentials are written to profile configuration.
 

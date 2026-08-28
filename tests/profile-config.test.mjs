@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 import { resolveProfile } from "../skills/communicating-with-letta/scripts/profile-config.mjs";
@@ -160,6 +160,12 @@ appendFileSync(process.env.ACPX_TEST_LOG, JSON.stringify({
   serverArgs: process.env.LETTA_ACP_SERVER_ARGS_JSON,
   stdin: prompt ? readFileSync(0, "utf8") : "",
 }) + "\\n");
+if (prompt) {
+  const format = process.argv[process.argv.indexOf("--format") + 1];
+  process.stdout.write(format === "quiet"
+    ? "clean reply\\n"
+    : "[thinking] transport detail\\nclean reply\\n[done] end_turn\\n");
+}
 `);
   chmodSync(acpx, 0o755);
 
@@ -172,7 +178,7 @@ appendFileSync(process.env.ACPX_TEST_LOG, JSON.stringify({
     "LETTA_ACP_SERVER_ARGS",
     "LETTA_ACP_SERVER_ARGS_JSON",
   ]) delete env[key];
-  execFileSync(join(scripts, "letta-message"), [
+  const ordinaryOutput = execFileSync(join(scripts, "letta-message"), [
     "--profile", "shared", "hello from a harness",
   ], {
     cwd: projectRoot,
@@ -182,17 +188,89 @@ appendFileSync(process.env.ACPX_TEST_LOG, JSON.stringify({
       ACPX_BIN: acpx,
       ACPX_TEST_LOG: logPath,
     },
+    encoding: "utf8",
+  });
+  const verboseOutput = execFileSync(join(scripts, "letta-message"), [
+    "--verbose", "--profile", "shared", "show transport details",
+  ], {
+    cwd: projectRoot,
+    env: {
+      ...env,
+      XDG_CONFIG_HOME: configRoot,
+      ACPX_BIN: acpx,
+      ACPX_TEST_LOG: logPath,
+    },
+    encoding: "utf8",
   });
 
   const calls = readFileSync(logPath, "utf8").trim().split("\n").map(JSON.parse);
-  assert.equal(calls.length, 2);
-  assert.deepEqual(calls.map((call) => call.agentId), ["agent-shared", "agent-shared"]);
+  assert.equal(ordinaryOutput, "clean reply\n");
+  assert.equal(
+    verboseOutput,
+    "[thinking] transport detail\nclean reply\n[done] end_turn\n",
+  );
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls.map((call) => call.agentId), [
+    "agent-shared", "agent-shared", "agent-shared", "agent-shared",
+  ]);
   assert.equal(calls[0].command, "/custom/launcher");
   assert.equal(calls[0].serverArgs, '["arg with space"]');
   const sessionName = calls[0].args.at(-1);
   assert.match(sessionName, /^shared-[a-f0-9]{8}$/);
   assert.equal(calls[1].args.includes(sessionName), true);
+  assert.equal(calls[1].args.includes("quiet"), true);
   assert.equal(calls[1].stdin, "hello from a harness\n");
+  assert.equal(calls[3].args.includes("text"), true);
+  assert.equal(calls[3].stdin, "show transport details\n");
+
+  assert.throws(
+    () => execFileSync(join(scripts, "letta-message"), [
+      "--profile", "--verbose", "hello",
+    ], {
+      cwd: projectRoot,
+      env,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+    (error) => String(error.stderr).includes("--profile requires a name"),
+  );
+});
+
+test("message keeps the npx fallback quiet on successful calls", () => {
+  const temp = mkdtempSync(join(tmpdir(), "letta-npx-"));
+  const projectRoot = join(temp, "project");
+  const configRoot = join(temp, "config");
+  const logPath = join(temp, "npx.jsonl");
+  const npx = join(temp, "npx");
+  mkdirSync(projectRoot, { recursive: true });
+  writeJson(join(configRoot, "letta-acp-bridge", "config.json"), {
+    version: 1,
+    defaultProfile: "shared",
+    profiles: { shared: { agentId: "agent-shared" } },
+  });
+  writeFileSync(npx, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+appendFileSync(process.env.NPX_TEST_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
+if (process.argv.includes("prompt")) process.stdout.write("fallback reply\\n");
+`);
+  chmodSync(npx, 0o755);
+
+  const output = execFileSync(join(scripts, "letta-message"), ["hello"], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      PATH: `${temp}:${dirname(process.execPath)}:/usr/bin:/bin`,
+      XDG_CONFIG_HOME: configRoot,
+      NPX_TEST_LOG: logPath,
+    },
+    encoding: "utf8",
+  });
+
+  const calls = readFileSync(logPath, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(output, "fallback reply\n");
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].slice(0, 3), ["-y", "--loglevel=error", "acpx"]);
+  assert.deepEqual(calls[1].slice(0, 3), ["-y", "--loglevel=error", "acpx"]);
 });
 
 test("ACP server preserves custom argv and applies safe defaults", () => {

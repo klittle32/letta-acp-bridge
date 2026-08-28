@@ -81,7 +81,16 @@ skills/communicating-with-letta/scripts/letta-message \
   'message text'
 ```
 
-Omit `--profile` to use the resolved project or user default.
+Omit `--profile` to use the resolved project or user default. On success,
+ordinary stdout contains only the Letta agent's reply. Add `--verbose` to show
+ACPX lifecycle, thinking, and completion output when diagnosing an exchange;
+failures remain visible on stderr.
+
+ACPX identifies a persisted conversation by the resolved bridge command path,
+absolute working directory, and profile-derived session name. Harnesses using
+one canonical skill directory (directly or through symlinks) share a
+conversation for the same project and profile. Separate copied installations
+remain isolated. Shared conversations may interleave concurrent messages.
 
 ## Non-goals
 
