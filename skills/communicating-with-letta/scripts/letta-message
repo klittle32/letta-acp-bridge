@@ -1,37 +1,99 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env node
 
-scripts=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-agent="$scripts/letta-acp-server"
-cwd=${LETTA_MESSAGE_CWD:-$PWD}
+import { accessSync, constants, readFileSync } from "node:fs";
+import { delimiter, dirname, join } from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { resolveProfile } from "./profile-config.mjs";
 
-[ -n "${LETTA_AGENT_ID:-}" ] || {
-  printf 'LETTA_AGENT_ID must identify the persistent Letta agent to use\n' >&2
-  exit 2
+function executableOnPath(name, env = process.env) {
+  for (const directory of (env.PATH || "").split(delimiter)) {
+    if (!directory) continue;
+    const candidate = join(directory, name);
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // Keep searching.
+    }
+  }
+  return null;
 }
 
-run_acpx() {
-  if [ -n "${ACPX_BIN:-}" ]; then
-    "$ACPX_BIN" "$@"
-  elif command -v acpx >/dev/null 2>&1; then
-    acpx "$@"
-  else
-    npx -y acpx "$@"
-  fi
+function parseArgs(argv) {
+  let profileName;
+  const message = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--profile") {
+      if (!argv[i + 1]) throw new Error("--profile requires a name");
+      profileName = argv[++i];
+    } else if (argv[i] === "--") {
+      message.push(...argv.slice(i + 1));
+      break;
+    } else message.push(argv[i]);
+  }
+  return { profileName, message: message.join(" ") };
 }
 
-if [ "$#" -gt 0 ]; then
-  message=$*
-elif [ ! -t 0 ]; then
-  message=$(cat)
-else
-  printf 'Usage: letta-message <message>\n' >&2
-  printf '   or: printf "message" | letta-message\n' >&2
-  exit 2
-fi
+function run(command, args, { env, stdin, quiet = false }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: [stdin === undefined ? "ignore" : "pipe", quiet ? "ignore" : "inherit", "inherit"],
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited with ${signal || code}`));
+    });
+    if (stdin !== undefined) child.stdin.end(stdin);
+  });
+}
 
-[ -n "$message" ] || { printf 'Message must not be empty\n' >&2; exit 2; }
+try {
+  const parsed = parseArgs(process.argv.slice(2));
+  let message = parsed.message;
+  if (!message && !process.stdin.isTTY) message = readFileSync(0, "utf8").trimEnd();
+  if (!message) throw new Error("Usage: letta-message [--profile <name>] <message>");
 
-run_acpx --cwd "$cwd" "$agent" sessions ensure >/dev/null
-printf '%s\n' "$message" |
-  run_acpx --cwd "$cwd" --format text "$agent" prompt --file -
+  const cwd = process.env.LETTA_MESSAGE_CWD || process.cwd();
+  const resolved = resolveProfile({ cwd, profileName: parsed.profileName });
+  const profile = resolved.profile;
+  const env = {
+    ...process.env,
+    LETTA_AGENT_ID: profile.agentId,
+    LETTA_ACP_BACKEND: profile.backend || "cloud-oauth",
+    LETTA_ACP_PERMISSION_MODE: profile.permissionMode || "standard",
+  };
+  delete env.LETTA_ACP_SERVER_COMMAND;
+  delete env.LETTA_ACP_SERVER_ARGS;
+  delete env.LETTA_ACP_SERVER_ARGS_JSON;
+  if (profile.server) {
+    env.LETTA_ACP_SERVER_COMMAND = profile.server.command;
+    env.LETTA_ACP_SERVER_ARGS_JSON = JSON.stringify(profile.server.args || []);
+  }
+
+  const configuredAcpx = process.env.ACPX_BIN;
+  const installedAcpx = executableOnPath("acpx");
+  const command = configuredAcpx || installedAcpx || "npx";
+  const prefix = configuredAcpx || installedAcpx ? [] : ["-y", "acpx"];
+  const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+  const agent = join(scriptDirectory, "letta-acp-server");
+
+  await run(command, [
+    ...prefix,
+    "--cwd", cwd,
+    agent,
+    "sessions", "ensure", "--name", resolved.sessionName,
+  ], { env, quiet: true });
+  await run(command, [
+    ...prefix,
+    "--cwd", cwd,
+    "--format", "text",
+    agent,
+    "prompt", "--session", resolved.sessionName, "--file", "-",
+  ], { env, stdin: `${message}\n` });
+} catch (error) {
+  console.error(`letta-message: ${error.message}`);
+  process.exitCode = 2;
+}

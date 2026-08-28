@@ -1,60 +1,54 @@
-# Pilot plan
+# Pilot
 
 ## Objective
 
-Verify that a coding harness can start and continue a conversation with one persistent Letta agent through the bridge without learning the raw ACPX or `letta-acp` mechanics.
+Verify that independent coding harnesses can start and continue a conversation
+with a configured persistent Letta agent without knowing the raw ACPX or
+`letta-acp` mechanics.
 
 ## Preconditions
 
-- ACPX is installed.
-- `letta-acp` is installed and authenticated for the intended Letta backend.
-- The wrapper identifies the target Letta agent and supported backend configuration.
-- A minimal calling-harness skill invokes only that wrapper.
+- Node.js is available.
+- Letta is authenticated for the selected backend.
+- The target persistent Letta agent ID is known.
+- The `communicating-with-letta` skill is installed in each calling harness.
 
-## Pilot
+## Automated checks
 
-1. From one coding harness, use the skill to send a message.
-2. Confirm that the wrapper creates or resumes the expected ACPX session.
-3. Send a follow-up and confirm that it reaches the same conversation.
-4. Repeat from another representative coding harness.
-5. Fix only the problems that appear in those real exchanges.
+From the repository root:
+
+```bash
+node --test tests/profile-config.test.mjs
+```
+
+These checks cover:
+
+- user and project profile resolution;
+- whole-object project overrides;
+- user and project setup scopes;
+- profile fingerprint changes after an override;
+- ACPX session selection and message forwarding;
+- custom server argv preservation; and
+- safe adapter defaults.
+
+## Live pilot
+
+1. Create a profile with `<skill-directory>/scripts/setup-letta-profile`.
+2. From one coding harness, use the skill to send a message containing a unique
+   marker.
+3. Send a follow-up and confirm the same Letta conversation recalls the marker.
+4. From another harness in the same workspace, ask for the marker without
+   repeating it.
+5. Add a same-name project override and confirm the internal fingerprint and
+   Letta conversation change.
 
 ## Exit criteria
 
-The pilot succeeds when both harnesses can start and continue a conversation with the selected persistent Letta agent through the same portable procedure.
+The pilot succeeds when:
 
-## Walking skeleton
+- both harnesses use the same portable procedure;
+- same-workspace, same-profile follow-ups continue one Letta conversation;
+- a changed resolved profile cannot resume the old target's conversation; and
+- no credentials are written to profile configuration.
 
-Proven locally on 2026-08-28 with ACPX 0.13.1 and the same Johnny5
-`cloud-oauth` launcher used by Buzz:
-
-```bash
-npx -y acpx johnny5 sessions new --name bridge-pilot
-npx -y acpx johnny5 -s bridge-pilot '<message>'
-npx -y acpx johnny5 -s bridge-pilot '<follow-up>'
-```
-
-Both messages used Letta conversation
-`conv-51279776-7f67-4105-ac40-cb50234b133d`. The follow-up correctly recalled a
-marker supplied only in the first message, proving conversation continuation.
-
-The bundled wrapper was then proven with a second two-message exchange:
-
-```bash
-skills/communicating-with-letta/scripts/letta-message '<message>'
-skills/communicating-with-letta/scripts/letta-message '<follow-up>'
-```
-
-Both calls used conversation `conv-02c448ee-f9a2-479d-a0f6-db45ffe66d1d`, and
-the follow-up recalled a marker supplied only in the first call.
-
-The portable skill then passed the two-harness pilot from the same workspace:
-
-- Grok Build used the skill to send a marker to Johnny5.
-- OMP independently loaded the skill and asked Johnny5 to recall that marker
-  without including it in the follow-up.
-
-Johnny5 returned `GROK_BRIDGE_OK violet-circuit-83` and then
-`OMP_BRIDGE_OK violet-circuit-83`. ACPX history confirms both harness messages
-and replies remained in conversation
-`conv-02c448ee-f9a2-479d-a0f6-db45ffe66d1d`. The pilot exit criteria are met.
+The initial implementation has met these criteria with ACPX 0.13.1.

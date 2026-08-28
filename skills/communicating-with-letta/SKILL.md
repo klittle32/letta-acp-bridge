@@ -10,18 +10,38 @@ adapter commands. Run it from the current working directory; that directory is
 the conversation scope, so follow-ups from the same workspace continue the
 same Letta conversation.
 
-The environment must provide `LETTA_AGENT_ID`. Optional settings are
-`LETTA_ACP_BACKEND` (default `cloud-oauth`), `LETTA_ACP_PERMISSION_MODE`
-(default `standard`), and `LETTA_ACP_SERVER_COMMAND` for a custom executable
-that launches `letta-acp`. Supply simple whitespace-delimited arguments through
-`LETTA_ACP_SERVER_ARGS`. Without that override, the wrapper uses an installed
-`letta-acp` or falls back to `npx -y @letta-ai/letta-acp`.
+## Configure a profile
+
+When the user asks to configure a Letta agent, run:
+
+```bash
+<skill-directory>/scripts/setup-letta-profile
+```
+
+The command prompts for user or project scope, profile name, agent ID, and
+optional adapter settings. For noninteractive setup, pass at least `--scope`,
+`--name`, and `--agent-id`; run it with `--help` for all flags.
+
+User configuration lives under `$XDG_CONFIG_HOME/letta-acp-bridge/` or
+`~/.config/letta-acp-bridge/`. Project configuration lives at
+`<git-root>/.letta-acp-bridge/config.json`. A project profile replaces a
+same-name user profile as a complete object. Never put credentials in either
+file.
+
+Do not silently run setup during an ordinary message attempt. If a profile is
+missing, return the setup command from the error.
+
+## Communicate
 
 Send a short message as an argument:
 
 ```bash
-<skill-directory>/scripts/letta-message 'message text'
+<skill-directory>/scripts/letta-message --profile <name> 'message text'
 ```
+
+Omit `--profile` when a default profile is configured. The resolved profile
+name and fingerprint select the ACPX session, so changed project overrides do
+not resume a conversation created for another Letta target.
 
 For multiline content, pipe it through stdin:
 

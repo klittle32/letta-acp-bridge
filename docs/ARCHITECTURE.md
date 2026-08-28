@@ -17,22 +17,26 @@
 calling harness
   └── portable skill
         └── bridge wrapper
-              └── acpx johnny5 [session policy]
+              └── acpx [resolved profile session]
                     └── letta-acp
                           └── Letta agent identity
 ```
 
-The environment provides `LETTA_AGENT_ID` and any backend-specific overrides.
-The wrapper turns that configuration into a stable ACPX agent command. Calling
-harnesses should not invoke raw `acpx --agent ...` or reconstruct adapter
-startup themselves.
+The wrapper resolves user and project profile configuration into the Letta
+target and adapter environment. Calling harnesses should not invoke raw
+`acpx --agent ...` or reconstruct adapter startup themselves.
+
+User profiles come from `$XDG_CONFIG_HOME/letta-acp-bridge/config.json` (or the
+`~/.config` fallback). Project profiles come from
+`<git-root>/.letta-acp-bridge/config.json`. Project-only names extend the user
+map; a same-name project profile replaces the complete user profile object.
 
 ## Identity and continuity
 
 Three identifiers serve different purposes:
 
 ```text
-calling-work context (workspace, Buzz channel, task, or branch)
+calling-work context (workspace, project, task, or branch)
   → ACPX session scope / Letta conversation
     → durable Letta agent identity and memory
 ```
@@ -41,24 +45,29 @@ calling-work context (workspace, Buzz channel, task, or branch)
 - An **ACP session** maps to a specific Letta conversation and carries its working transcript.
 - The **calling-work context** decides which session is appropriate.
 
-ACPX's default persisted-session scope is based on `(agent command, absolute cwd, optional name)`. The wrapper must make any exception explicit rather than accidentally sharing or fragmenting conversations.
+ACPX's persisted-session scope is based on `(agent command, absolute cwd,
+optional name)`. The wrapper supplies an internal name made from the visible
+profile name and a short fingerprint of the resolved profile. A changed
+same-name override therefore creates a new conversation instead of resuming one
+bound to a different target.
 
-## Initial wrapper contract
+## Wrapper contract
 
-The first wrapper should support only an ordinary message exchange:
+The wrapper supports an ordinary message exchange:
 
 ```text
-letta-message [--session <name>] <message>
+letta-message [--profile <name>] <message>
 ```
 
-It should:
+It:
 
-1. use a stable configured ACPX agent alias;
+1. resolve the named/default user and project profile;
 2. ensure the intended session exists;
 3. send the message and return the final reply cleanly; and
 4. fail clearly when the exchange cannot be completed.
 
-The exact command name may change during implementation. The important boundary is that callers use the wrapper rather than rebuilding the ACPX and Letta configuration themselves.
+The important boundary is that callers use the wrapper rather than rebuilding
+the ACPX and Letta configuration themselves.
 
 ## Protocol boundary
 

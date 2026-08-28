@@ -20,46 +20,68 @@ The harness gets a simple way to start and continue an exchange. The Letta agent
 
 ## Scope
 
-This project is currently a design-and-pilot effort. It will establish:
+This project provides:
 
-- a stable wrapper for communicating with one configured Letta agent;
+- a stable wrapper for communicating with configured Letta agents;
 - a small portable skill for coding harnesses;
 - predictable conversation continuation; and
-- a small pilot across a few coding harnesses.
+- layered user and project profiles.
 
 See [Architecture](docs/ARCHITECTURE.md) and the [Pilot plan](docs/PILOT.md).
 
 ## Configure
 
-The bundled skill uses POSIX shell scripts, suitable for macOS, Linux, and WSL.
-Set the persistent Letta agent to reach:
+The bundled skill uses Node.js executable scripts on macOS, Linux, and WSL.
+Install or copy `skills/communicating-with-letta` into the harness's skill
+directory, then create a named profile:
 
 ```bash
-export LETTA_AGENT_ID='<your-agent-id>'
+skills/communicating-with-letta/scripts/setup-letta-profile \
+  --scope user \
+  --name my-agent \
+  --agent-id agent-... \
+  --default
 ```
 
-The default backend is `cloud-oauth` and the default Letta permission mode is
-`standard`. Override either when needed:
+Without flags, the setup command prompts interactively. Use `--scope project`
+to write project configuration instead. Configuration layers are:
+
+```text
+user:    $XDG_CONFIG_HOME/letta-acp-bridge/config.json
+project: <git-root>/.letta-acp-bridge/config.json
+```
+
+When `XDG_CONFIG_HOME` is unset, the user path falls back to
+`~/.config/letta-acp-bridge/config.json`. Project profiles extend user profiles.
+A same-name project profile replaces the complete user profile object, and a
+project default overrides the user default.
+
+The default backend is `cloud-oauth`, the default permission mode is `standard`,
+and the adapter is an installed `letta-acp` or `npx -y @letta-ai/letta-acp`.
+Configure a custom launcher when needed:
 
 ```bash
-export LETTA_ACP_BACKEND='cloud-oauth'
-export LETTA_ACP_PERMISSION_MODE='standard'
+skills/communicating-with-letta/scripts/setup-letta-profile \
+  --scope user \
+  --name my-agent \
+  --agent-id agent-... \
+  --server-command /path/to/launcher \
+  --server-arg value
 ```
 
-By default, the wrapper runs an installed `letta-acp`, falling back to
-`npx -y @letta-ai/letta-acp`. Environments that need a custom launcher may set
-its executable path:
+Server arguments are stored as a JSON array, preserving argument boundaries.
+Profiles contain no credentials; authentication remains in Letta's login or
+secret storage.
+
+Communicate with a profile:
 
 ```bash
-export LETTA_ACP_SERVER_COMMAND='/path/to/custom-letta-acp-launcher'
-export LETTA_ACP_SERVER_ARGS='--profile example'
+skills/communicating-with-letta/scripts/letta-message \
+  --profile my-agent \
+  'message text'
 ```
 
-`LETTA_ACP_SERVER_ARGS` supports simple whitespace-delimited arguments. Use a
-small wrapper executable when an individual argument contains whitespace.
-
-Then install or copy `skills/communicating-with-letta` into a harness's skill
-directory. The skill invokes its bundled `scripts/letta-message` command.
+Omit `--profile` to use the resolved project or user default.
 
 ## Non-goals
 
@@ -70,8 +92,7 @@ directory. The skill invokes its bundled `scripts/letta-message` command.
 
 ## Status
 
-The manual ACPX-to-Johnny5 path and conversation continuation are proven. The
-working launch now lives behind
-`skills/communicating-with-letta/scripts/letta-message`, with the portable skill
-beside it. Grok Build and OMP both used the skill successfully, including a
-cross-harness follow-up in the same Letta conversation.
+The wrapper, portable skill, interactive/noninteractive profile setup, layered
+user/project configuration, and fingerprinted session continuation are
+implemented. The same installed skill has successfully started and continued a
+shared Letta conversation from multiple coding harnesses.
