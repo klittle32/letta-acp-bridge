@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+[ -n "${LETTA_AGENT_ID:-}" ] || {
+  printf 'LETTA_AGENT_ID must identify the persistent Letta agent to use\n' >&2
+  exit 2
+}
+
+export LETTA_ACP_BACKEND=${LETTA_ACP_BACKEND:-cloud-oauth}
+export LETTA_ACP_PERMISSION_MODE=${LETTA_ACP_PERMISSION_MODE:-standard}
+
+if [ -n "${LETTA_ACP_SERVER_COMMAND:-}" ]; then
+  # LETTA_ACP_SERVER_ARGS is intentionally split into argv for simple launchers.
+  # Use a wrapper executable when an argument itself contains whitespace.
+  # shellcheck disable=SC2086
+  exec "$LETTA_ACP_SERVER_COMMAND" ${LETTA_ACP_SERVER_ARGS:-}
+elif command -v letta-acp >/dev/null 2>&1; then
+  exec letta-acp
+else
+  exec npx -y @letta-ai/letta-acp
+fi

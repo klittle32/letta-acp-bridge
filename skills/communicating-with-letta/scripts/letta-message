@@ -2,8 +2,13 @@
 set -eu
 
 scripts=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-agent="$scripts/johnny5-acp"
+agent="$scripts/letta-acp-server"
 cwd=${LETTA_MESSAGE_CWD:-$PWD}
+
+[ -n "${LETTA_AGENT_ID:-}" ] || {
+  printf 'LETTA_AGENT_ID must identify the persistent Letta agent to use\n' >&2
+  exit 2
+}
 
 run_acpx() {
   if [ -n "${ACPX_BIN:-}" ]; then

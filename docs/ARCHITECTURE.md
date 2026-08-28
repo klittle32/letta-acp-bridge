@@ -6,7 +6,7 @@
 | --- | --- |
 | Calling harness | Sends messages and uses the replies in its own work. |
 | Portable skill | Teaches the harness the bridge's small command surface. |
-| Bridge wrapper | Owns the configured target, adapter environment, conversation mapping, and ACPX invocation. |
+| Bridge wrapper | Reads the configured target and adapter environment, then owns conversation mapping and ACPX invocation. |
 | ACPX | Headless ACP client that creates/resumes a local session and streams structured results. |
 | `letta-acp` | ACP server adapter exposing a stateful Letta agent. |
 | Letta agent | Persistent identity, memory, and conversation state. |
@@ -22,7 +22,10 @@ calling harness
                           └── Letta agent identity
 ```
 
-The wrapper is intentionally the only component that knows the Letta target and adapter setup. Calling harnesses should not invoke raw `acpx --agent ...`, edit ACPX configuration, or reconstruct `LETTA_AGENT_ID` and authentication behavior.
+The environment provides `LETTA_AGENT_ID` and any backend-specific overrides.
+The wrapper turns that configuration into a stable ACPX agent command. Calling
+harnesses should not invoke raw `acpx --agent ...` or reconstruct adapter
+startup themselves.
 
 ## Identity and continuity
 

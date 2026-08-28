@@ -29,6 +29,38 @@ This project is currently a design-and-pilot effort. It will establish:
 
 See [Architecture](docs/ARCHITECTURE.md) and the [Pilot plan](docs/PILOT.md).
 
+## Configure
+
+The bundled skill uses POSIX shell scripts, suitable for macOS, Linux, and WSL.
+Set the persistent Letta agent to reach:
+
+```bash
+export LETTA_AGENT_ID='<your-agent-id>'
+```
+
+The default backend is `cloud-oauth` and the default Letta permission mode is
+`standard`. Override either when needed:
+
+```bash
+export LETTA_ACP_BACKEND='cloud-oauth'
+export LETTA_ACP_PERMISSION_MODE='standard'
+```
+
+By default, the wrapper runs an installed `letta-acp`, falling back to
+`npx -y @letta-ai/letta-acp`. Environments that need a custom launcher may set
+its executable path:
+
+```bash
+export LETTA_ACP_SERVER_COMMAND='/path/to/custom-letta-acp-launcher'
+export LETTA_ACP_SERVER_ARGS='--profile example'
+```
+
+`LETTA_ACP_SERVER_ARGS` supports simple whitespace-delimited arguments. Use a
+small wrapper executable when an individual argument contains whitespace.
+
+Then install or copy `skills/communicating-with-letta` into a harness's skill
+directory. The skill invokes its bundled `scripts/letta-message` command.
+
 ## Non-goals
 
 - Replacing Letta Code, ACPX, or an existing coding harness.
