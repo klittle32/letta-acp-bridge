@@ -48,6 +48,26 @@ These checks cover:
 6. Add a same-name project override and confirm the internal fingerprint and
    Letta conversation change.
 
+## Cross-harness discovery verification
+
+Verified on 2026-08-28 with Codex CLI 0.150.1 and Grok 1.0.8:
+
+```bash
+letta-acp-bridge skill install \
+  --target "$HOME/.agents/skills/communicating-with-letta"
+```
+
+- `grok inspect --json` reported the skill as a user skill at the exact
+  canonical `SKILL.md` path, and explicit `$communicating-with-letta`
+  invocation loaded that path.
+- A clean temporary installation of `@openai/codex@0.150.1` explicitly invoked
+  `$communicating-with-letta` and loaded the same canonical `SKILL.md` path.
+- The package test suite verifies that two harness-specific symlinks to one
+  canonical target both pass the same resolved skill path to the bridge.
+
+These checks prove the current Codex and Grok user-scoped discovery pattern on
+macOS. They do not imply support in an untested harness or older release.
+
 ## Exit criteria
 
 The pilot succeeds when:

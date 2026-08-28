@@ -9,7 +9,10 @@ Use `<skill-directory>/scripts/letta-message` rather than raw `acpx`, `npx`,
 `letta -p`, or direct adapter commands. The thin script calls the installed
 `letta-acp-bridge` package and supplies this skill's canonical target path. Run
 it from the current working directory. A shared skill target therefore supports
-cross-harness continuity, while separate copied skills remain isolated.
+cross-harness continuity for the same working directory and resolved profile,
+while separate copied skills remain isolated. Concurrent calls to one shared
+conversation may interleave, so do not send them concurrently when order
+matters.
 
 ## Configure a profile
 

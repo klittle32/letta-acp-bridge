@@ -44,11 +44,12 @@ ACPX and `letta-acp` are pinned package dependencies. Ordinary message calls
 resolve those installed dependencies directly and never invoke `npx` or perform
 an implicit download.
 
-Install the bundled harness skill only to an explicit target:
+Install the bundled harness skill only to an explicit target. Codex 0.150.1 and
+Grok 1.0.8 both discover the standard user-scoped target below:
 
 ```bash
 letta-acp-bridge skill install \
-  --target .grok/skills/communicating-with-letta
+  --target "$HOME/.agents/skills/communicating-with-letta"
 ```
 
 An existing target is refused unless `--force` is supplied. The command does
@@ -62,6 +63,32 @@ letta-acp-bridge skill path
 Package installation itself does not write profiles, install skills, edit shell
 configuration, start services, or modify harness directories. Package upgrades
 do not rewrite previously installed skill copies.
+
+### Choose sharing or isolation
+
+Skill placement is part of the conversation identity. Choose the pattern that
+matches the intended behavior:
+
+**Share one conversation across harnesses:** install one canonical skill target
+that every harness discovers. For current Codex and Grok, the user-scoped
+`~/.agents/skills/communicating-with-letta` target above is sufficient. If a
+different harness needs its own discovery path and supports symlinks, link that
+path to the canonical target rather than making another copy. The skill wrapper
+resolves symlinks, so both paths report the same physical skill directory.
+
+**Keep harness conversations isolated:** install separate copies in each
+harness's supported skill directory. For example:
+
+```bash
+letta-acp-bridge skill install \
+  --target .agents/skills/communicating-with-letta
+letta-acp-bridge skill install \
+  --target .grok/skills/communicating-with-letta
+```
+
+Do not assume that an unlisted harness discovers `~/.agents/skills`; use a path
+documented by that harness. The bridge does not scan or populate harness
+directories automatically.
 
 ## Configure
 
@@ -119,12 +146,14 @@ ACPX lifecycle, thinking, and completion output when diagnosing an exchange;
 failures remain visible on stderr.
 
 ACPX identifies a persisted conversation by the resolved package server
-command, absolute working directory, and profile-derived session name. Calls
-through an installed skill also include the skill's canonical target in that
-session name. Harnesses using one canonical skill directory (directly or
-through symlinks) therefore share a conversation for the same project and
-profile. Separate copied installations remain isolated. Shared conversations
-may interleave concurrent messages.
+command, absolute working directory, and session name. The bridge derives that
+session name from the profile name, the complete resolved-profile fingerprint,
+and—when called through a skill—the real path of the skill directory. Harnesses
+using one canonical skill directory therefore share a conversation only when
+they also use the same working directory and resolved profile. Different
+projects, profile overrides, or copied skill directories remain separate.
+Concurrent messages to a shared conversation may interleave; serialize calls
+when ordering matters.
 
 The package also installs the previous `letta-message` and
 `setup-letta-profile` command names as compatibility entry points. New

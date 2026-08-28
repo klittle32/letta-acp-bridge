@@ -52,17 +52,31 @@ calling-work context (workspace, project, task, or branch)
 
 ACPX's persisted-session scope is based on `(agent command, absolute cwd,
 optional name)`. The CLI supplies an internal name made from the visible profile
-name and a short fingerprint of the resolved profile. Calls through an installed
-skill append a short fingerprint of that skill's canonical target. A changed
-same-name override therefore creates a new conversation instead of resuming one
-bound to a different target.
+name and a short fingerprint of the complete resolved profile. Calls through an
+installed skill append a short fingerprint of that skill directory's real path.
+A changed same-name override therefore creates a new conversation instead of
+resuming one bound to a different target.
 
 The skill target is intentionally meaningful. Its thin wrapper resolves
 symlinks before passing the target to the package CLI. Harnesses that invoke one
 canonical skill target share a conversation for the same cwd and profile;
 separate copied skill directories create separate conversations. This permits
 either shared cross-harness continuity or harness-level isolation without a
-second routing system.
+second routing system. Concurrent messages to a shared conversation may
+interleave, so callers that require ordering should serialize them.
+
+The bridge supports two explicit installation patterns:
+
+- **Canonical target for sharing:** install once at a path discovered by every
+  intended harness, or symlink harness-specific discovery paths to that one
+  target. Current Codex and Grok both discover
+  `~/.agents/skills/communicating-with-letta`.
+- **Copied targets for isolation:** install a separate copy into each harness's
+  supported skill directory. Each copy has a different real path and therefore
+  a different session name.
+
+Discovery support belongs to each harness. The bridge documents verified paths
+but does not scan or mutate every possible harness directory.
 
 ## Wrapper contract
 

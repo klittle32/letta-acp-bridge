@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -124,6 +125,42 @@ writeFileSync(process.env.WRAPPER_LOG, JSON.stringify({
     args: ["message", "--profile", "johnny5", "hello"],
     skillPath: realpathSync(target),
   });
+});
+
+test("symlinked harness installs report one shared canonical skill scope", () => {
+  const temp = mkdtempSync(join(tmpdir(), "letta-cli-shared-skill-"));
+  const target = join(temp, "canonical-skill");
+  const codexTarget = join(temp, "codex", "communicating-with-letta");
+  const grokTarget = join(temp, "grok", "communicating-with-letta");
+  const bin = join(temp, "bin");
+  const log = join(temp, "wrapper.jsonl");
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(join(temp, "codex"), { recursive: true });
+  mkdirSync(join(temp, "grok"), { recursive: true });
+  run(["skill", "install", "--target", target]);
+  symlinkSync(target, codexTarget);
+  symlinkSync(target, grokTarget);
+  const fakeCli = join(bin, "letta-acp-bridge");
+  writeFileSync(fakeCli, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+appendFileSync(process.env.WRAPPER_LOG, process.env.LETTA_ACP_BRIDGE_SKILL_PATH + "\\n");
+`);
+  execFileSync("chmod", ["+x", fakeCli]);
+
+  for (const harnessTarget of [codexTarget, grokTarget]) {
+    execFileSync(join(harnessTarget, "scripts", "letta-message"), ["hello"], {
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        WRAPPER_LOG: log,
+      },
+    });
+  }
+
+  assert.deepEqual(
+    readFileSync(log, "utf8").trim().split("\n"),
+    [realpathSync(target), realpathSync(target)],
+  );
 });
 
 test("message command preserves clean stdout and forwards its profile", () => {
