@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+bun=${BUZZ_BUN_PATH:-/Users/kyle/.bun/bin/bun}
+launcher=${JOHNNY5_ACP_LAUNCHER:-/Users/kyle/.buzz/REPOS/johnny5-letta-oauth-launcher/launcher.ts}
+
+[ -x "$bun" ] || { printf 'Bun not found: %s\n' "$bun" >&2; exit 1; }
+[ -f "$launcher" ] || { printf 'Johnny5 OAuth launcher not found: %s\n' "$launcher" >&2; exit 1; }
+
+export LETTA_ACP_BACKEND=${LETTA_ACP_BACKEND:-cloud-oauth}
+export LETTA_ACP_PERMISSION_MODE=${LETTA_ACP_PERMISSION_MODE:-unrestricted}
+export LETTA_AGENT_ID=${LETTA_AGENT_ID:-agent-bc25ee20-21b5-42bb-b497-e3a5f3a51417}
+
+exec "$bun" "$launcher"

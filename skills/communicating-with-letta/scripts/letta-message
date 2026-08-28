@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+
+scripts=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+agent="$scripts/johnny5-acp"
+cwd=${LETTA_MESSAGE_CWD:-$PWD}
+
+run_acpx() {
+  if [ -n "${ACPX_BIN:-}" ]; then
+    "$ACPX_BIN" "$@"
+  elif command -v acpx >/dev/null 2>&1; then
+    acpx "$@"
+  else
+    npx -y acpx "$@"
+  fi
+}
+
+if [ "$#" -gt 0 ]; then
+  message=$*
+elif [ ! -t 0 ]; then
+  message=$(cat)
+else
+  printf 'Usage: letta-message <message>\n' >&2
+  printf '   or: printf "message" | letta-message\n' >&2
+  exit 2
+fi
+
+[ -n "$message" ] || { printf 'Message must not be empty\n' >&2; exit 2; }
+
+run_acpx --cwd "$cwd" "$agent" sessions ensure >/dev/null
+printf '%s\n' "$message" |
+  run_acpx --cwd "$cwd" --format text "$agent" prompt --file -

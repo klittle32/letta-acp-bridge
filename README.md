@@ -38,4 +38,8 @@ See [Architecture](docs/ARCHITECTURE.md) and the [Pilot plan](docs/PILOT.md).
 
 ## Status
 
-Design and pilot. Success means a coding harness can start and continue a conversation with the selected persistent Letta agent without knowing the raw invocation or session plumbing.
+The manual ACPX-to-Johnny5 path and conversation continuation are proven. The
+working launch now lives behind
+`skills/communicating-with-letta/scripts/letta-message`, with the portable skill
+beside it. Grok Build and OMP both used the skill successfully, including a
+cross-harness follow-up in the same Letta conversation.
