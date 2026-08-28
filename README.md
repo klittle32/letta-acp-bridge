@@ -132,6 +132,23 @@ documentation uses `letta-acp-bridge`. Existing copied skills are not changed by
 package installation or upgrades; once a copied skill is explicitly replaced
 with the packaged version, it expects `letta-acp-bridge` on `PATH`.
 
+## Troubleshooting
+
+### ACPX state access in restricted harnesses
+
+ACPX needs read/write access to its queue and session state under `~/.acpx`. A
+restricted coding-harness sandbox may report an error such as:
+
+```text
+[acpx] queue owner failed: Failed to prepare queue directory ~/.acpx/queues: EPERM: operation not permitted
+```
+
+This is a harness filesystem-permission boundary, not a bridge transport
+failure. Approve the requested access or configure the harness to allow
+read/write access to `~/.acpx`, then retry the **same** `letta-acp-bridge
+message` or `letta-message` command. Do not bypass the wrapper, invent a raw
+ACPX command, or move ACPX state as a first response.
+
 ## Non-goals
 
 - Replacing Letta Code, ACPX, or an existing coding harness.

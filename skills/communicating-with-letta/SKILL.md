@@ -63,3 +63,9 @@ remain visible on stderr. When transport details are needed for diagnosis, add
 
 If `letta-acp-bridge` is unavailable, report that the package CLI is not on
 `PATH`. Do not replace it with `npx` or download another copy implicitly.
+
+If ACPX reports that it cannot prepare `~/.acpx/queues` or another path under
+`~/.acpx` because of `EPERM`, the restricted harness is blocking ACPX's queue
+and session state. Ask the user to approve or configure read/write access to
+`~/.acpx`, then retry the exact same wrapper command. Do not bypass the wrapper,
+construct a raw ACPX command, or relocate ACPX state.
