@@ -9,13 +9,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { resolveProfile } from "../skills/communicating-with-letta/scripts/profile-config.mjs";
+import { resolveProfile } from "../src/profile-config.mjs";
+import { acpxInvocation, lettaAcpInvocation } from "../src/runtime.mjs";
 
 const root = resolve(import.meta.dirname, "..");
-const scripts = join(root, "skills", "communicating-with-letta", "scripts");
+const messageBin = join(root, "bin", "letta-message.js");
+const profileBin = join(root, "bin", "setup-letta-profile.js");
+const serverBin = join(root, "bin", "letta-acp-server.js");
 
 function writeJson(path, value) {
   mkdirSync(resolve(path, ".."), { recursive: true });
@@ -92,7 +95,7 @@ test("project default profile overrides the user default", () => {
 
 test("setup writes a user profile without secrets", () => {
   const temp = mkdtempSync(join(tmpdir(), "letta-setup-"));
-  execFileSync(join(scripts, "setup-letta-profile"), [
+  execFileSync(profileBin, [
     "--scope", "user",
     "--name", "example-agent",
     "--agent-id", "agent-example",
@@ -115,7 +118,7 @@ test("setup writes project scope without changing user scope", () => {
   const projectRoot = join(temp, "project");
   const configRoot = join(temp, "config");
   mkdirSync(projectRoot, { recursive: true });
-  execFileSync(join(scripts, "setup-letta-profile"), [
+  execFileSync(profileBin, [
     "--scope", "project",
     "--cwd", projectRoot,
     "--name", "local",
@@ -178,7 +181,7 @@ if (prompt) {
     "LETTA_ACP_SERVER_ARGS",
     "LETTA_ACP_SERVER_ARGS_JSON",
   ]) delete env[key];
-  const ordinaryOutput = execFileSync(join(scripts, "letta-message"), [
+  const ordinaryOutput = execFileSync(messageBin, [
     "--profile", "shared", "hello from a harness",
   ], {
     cwd: projectRoot,
@@ -190,7 +193,7 @@ if (prompt) {
     },
     encoding: "utf8",
   });
-  const verboseOutput = execFileSync(join(scripts, "letta-message"), [
+  const verboseOutput = execFileSync(messageBin, [
     "--verbose", "--profile", "shared", "show transport details",
   ], {
     cwd: projectRoot,
@@ -224,7 +227,7 @@ if (prompt) {
   assert.equal(calls[3].stdin, "show transport details\n");
 
   assert.throws(
-    () => execFileSync(join(scripts, "letta-message"), [
+    () => execFileSync(messageBin, [
       "--profile", "--verbose", "hello",
     ], {
       cwd: projectRoot,
@@ -236,41 +239,19 @@ if (prompt) {
   );
 });
 
-test("message keeps the npx fallback quiet on successful calls", () => {
-  const temp = mkdtempSync(join(tmpdir(), "letta-npx-"));
-  const projectRoot = join(temp, "project");
-  const configRoot = join(temp, "config");
-  const logPath = join(temp, "npx.jsonl");
-  const npx = join(temp, "npx");
-  mkdirSync(projectRoot, { recursive: true });
-  writeJson(join(configRoot, "letta-acp-bridge", "config.json"), {
-    version: 1,
-    defaultProfile: "shared",
-    profiles: { shared: { agentId: "agent-shared" } },
-  });
-  writeFileSync(npx, `#!/usr/bin/env node
-import { appendFileSync } from "node:fs";
-appendFileSync(process.env.NPX_TEST_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
-if (process.argv.includes("prompt")) process.stdout.write("fallback reply\\n");
-`);
-  chmodSync(npx, 0o755);
+test("message resolves the pinned package-local ACPX entry without npx", () => {
+  const invocation = acpxInvocation({});
+  assert.equal(invocation.command, process.execPath);
+  assert.equal(invocation.args.length, 1);
+  assert.match(invocation.args[0], /node_modules\/acpx\/dist\/cli\.js$/);
+  assert.equal(invocation.args.includes("npx"), false);
+});
 
-  const output = execFileSync(join(scripts, "letta-message"), ["hello"], {
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      PATH: `${temp}:${dirname(process.execPath)}:/usr/bin:/bin`,
-      XDG_CONFIG_HOME: configRoot,
-      NPX_TEST_LOG: logPath,
-    },
-    encoding: "utf8",
-  });
-
-  const calls = readFileSync(logPath, "utf8").trim().split("\n").map(JSON.parse);
-  assert.equal(output, "fallback reply\n");
-  assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].slice(0, 3), ["-y", "--loglevel=error", "acpx"]);
-  assert.deepEqual(calls[1].slice(0, 3), ["-y", "--loglevel=error", "acpx"]);
+test("server resolves the pinned package-local letta-acp ESM entry", () => {
+  const invocation = lettaAcpInvocation({});
+  assert.equal(invocation.command, process.execPath);
+  assert.equal(invocation.args.length, 1);
+  assert.match(invocation.args[0], /node_modules\/@letta-ai\/letta-acp\/dist\/index\.js$/);
 });
 
 test("ACP server preserves custom argv and applies safe defaults", () => {
@@ -290,7 +271,7 @@ writeFileSync(process.env.SERVER_TEST_OUTPUT, JSON.stringify({
   const env = { ...process.env };
   delete env.LETTA_ACP_BACKEND;
   delete env.LETTA_ACP_PERMISSION_MODE;
-  execFileSync(join(scripts, "letta-acp-server"), [], {
+  execFileSync(serverBin, [], {
     env: {
       ...env,
       LETTA_AGENT_ID: "agent-test",

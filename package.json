@@ -1,0 +1,33 @@
+{
+  "name": "letta-acp-bridge",
+  "version": "0.1.0",
+  "description": "Portable CLI and harness skill for communicating with persistent Letta agents through ACPX.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/klittle32/letta-acp-bridge.git"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "letta-acp-bridge": "bin/letta-acp-bridge.js",
+    "letta-message": "bin/letta-message.js",
+    "setup-letta-profile": "bin/setup-letta-profile.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "skills/communicating-with-letta/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@letta-ai/letta-acp": "0.1.11",
+    "acpx": "0.13.2"
+  }
+}

@@ -25,7 +25,7 @@ export function projectConfigPath(projectRoot) {
   return join(projectRoot, ".letta-acp-bridge", "config.json");
 }
 
-function readConfig(path) {
+export function readConfig(path) {
   if (!existsSync(path)) return { version: 1, profiles: {} };
   let config;
   try {
@@ -93,7 +93,7 @@ export function resolveProfile({
 
   if (!name) {
     throw new Error(
-      "No Letta profile selected. Pass --profile <name> or configure a default with setup-letta-profile.",
+      "No Letta profile selected. Pass --profile <name> or configure a default with letta-acp-bridge profile add.",
     );
   }
   if (typeof name !== "string" || !/^[A-Za-z0-9._-]+$/.test(name)) {
@@ -102,7 +102,7 @@ export function resolveProfile({
   const profile = profiles[name];
   if (!profile) {
     throw new Error(
-      `Letta profile ${JSON.stringify(name)} was not found. Run setup-letta-profile --name ${name}.`,
+      `Letta profile ${JSON.stringify(name)} was not found. Run letta-acp-bridge profile add --name ${name}.`,
     );
   }
   validateProfile(name, profile);

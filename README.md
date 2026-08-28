@@ -29,14 +29,46 @@ This project provides:
 
 See [Architecture](docs/ARCHITECTURE.md) and the [Pilot plan](docs/PILOT.md).
 
-## Configure
+## Install
 
-The bundled skill uses Node.js executable scripts on macOS, Linux, and WSL.
-Install or copy `skills/communicating-with-letta` into the harness's skill
-directory, then create a named profile:
+The package requires Node.js 22.19 or newer and supports global installation
+through npm, Bun, or pnpm:
 
 ```bash
-skills/communicating-with-letta/scripts/setup-letta-profile \
+npm install --global letta-acp-bridge
+# or: bun add --global letta-acp-bridge
+# or: pnpm add --global letta-acp-bridge
+```
+
+ACPX and `letta-acp` are pinned package dependencies. Ordinary message calls
+resolve those installed dependencies directly and never invoke `npx` or perform
+an implicit download.
+
+Install the bundled harness skill only to an explicit target:
+
+```bash
+letta-acp-bridge skill install \
+  --target .grok/skills/communicating-with-letta
+```
+
+An existing target is refused unless `--force` is supplied. The command does
+not scan harness directories. To inspect the package's canonical skill source
+for a deliberate symlink-based installation, run:
+
+```bash
+letta-acp-bridge skill path
+```
+
+Package installation itself does not write profiles, install skills, edit shell
+configuration, start services, or modify harness directories. Package upgrades
+do not rewrite previously installed skill copies.
+
+## Configure
+
+Create a named profile:
+
+```bash
+letta-acp-bridge profile add \
   --scope user \
   --name my-agent \
   --agent-id agent-... \
@@ -57,11 +89,11 @@ A same-name project profile replaces the complete user profile object, and a
 project default overrides the user default.
 
 The default backend is `cloud-oauth`, the default permission mode is `standard`,
-and the adapter is an installed `letta-acp` or `npx -y @letta-ai/letta-acp`.
-Configure a custom launcher when needed:
+and the adapter is the package-pinned `letta-acp`. Configure a custom launcher
+when needed:
 
 ```bash
-skills/communicating-with-letta/scripts/setup-letta-profile \
+letta-acp-bridge profile add \
   --scope user \
   --name my-agent \
   --agent-id agent-... \
@@ -76,7 +108,7 @@ secret storage.
 Communicate with a profile:
 
 ```bash
-skills/communicating-with-letta/scripts/letta-message \
+letta-acp-bridge message \
   --profile my-agent \
   'message text'
 ```
@@ -86,11 +118,19 @@ ordinary stdout contains only the Letta agent's reply. Add `--verbose` to show
 ACPX lifecycle, thinking, and completion output when diagnosing an exchange;
 failures remain visible on stderr.
 
-ACPX identifies a persisted conversation by the resolved bridge command path,
-absolute working directory, and profile-derived session name. Harnesses using
-one canonical skill directory (directly or through symlinks) share a
-conversation for the same project and profile. Separate copied installations
-remain isolated. Shared conversations may interleave concurrent messages.
+ACPX identifies a persisted conversation by the resolved package server
+command, absolute working directory, and profile-derived session name. Calls
+through an installed skill also include the skill's canonical target in that
+session name. Harnesses using one canonical skill directory (directly or
+through symlinks) therefore share a conversation for the same project and
+profile. Separate copied installations remain isolated. Shared conversations
+may interleave concurrent messages.
+
+The package also installs the previous `letta-message` and
+`setup-letta-profile` command names as compatibility entry points. New
+documentation uses `letta-acp-bridge`. Existing copied skills are not changed by
+package installation or upgrades; once a copied skill is explicitly replaced
+with the packaged version, it expects `letta-acp-bridge` on `PATH`.
 
 ## Non-goals
 
@@ -101,7 +141,7 @@ remain isolated. Shared conversations may interleave concurrent messages.
 
 ## Status
 
-The wrapper, portable skill, interactive/noninteractive profile setup, layered
-user/project configuration, and fingerprinted session continuation are
-implemented. The same installed skill has successfully started and continued a
-shared Letta conversation from multiple coding harnesses.
+The npm CLI, explicit skill installer, portable skill, interactive/noninteractive
+profile setup, layered user/project configuration, clean message output, and
+fingerprinted session continuation are implemented. Publication to the npm
+registry is a separate release step.

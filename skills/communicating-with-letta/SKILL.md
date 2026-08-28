@@ -5,18 +5,18 @@ description: Communicates with a configured persistent Letta agent through the b
 
 # Communicating with Letta
 
-Use `scripts/letta-message` rather than raw `acpx`, `letta -p`, or direct
-adapter commands. Run it from the current working directory. ACPX resumes a
-conversation when the physical bridge command path, working directory, and
-profile-derived session name match. A shared skill target therefore supports
+Use `<skill-directory>/scripts/letta-message` rather than raw `acpx`, `npx`,
+`letta -p`, or direct adapter commands. The thin script calls the installed
+`letta-acp-bridge` package and supplies this skill's canonical target path. Run
+it from the current working directory. A shared skill target therefore supports
 cross-harness continuity, while separate copied skills remain isolated.
 
 ## Configure a profile
 
-When the user asks to configure a Letta agent, run:
+When the user asks to configure a Letta agent, run the package CLI:
 
 ```bash
-<skill-directory>/scripts/setup-letta-profile
+letta-acp-bridge profile add
 ```
 
 The command prompts for user or project scope, profile name, agent ID, and
@@ -60,3 +60,6 @@ session manually.
 On success, ordinary stdout contains only the Letta agent's reply; failures
 remain visible on stderr. When transport details are needed for diagnosis, add
 `--verbose` to the same command rather than reconstructing the ACPX invocation.
+
+If `letta-acp-bridge` is unavailable, report that the package CLI is not on
+`PATH`. Do not replace it with `npx` or download another copy implicitly.

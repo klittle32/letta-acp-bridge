@@ -1,108 +1,20 @@
 #!/usr/bin/env node
 
-import { accessSync, constants, readFileSync } from "node:fs";
-import { delimiter, dirname, join } from "node:path";
 import { spawn } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveProfile } from "./profile-config.mjs";
 
-function executableOnPath(name, env = process.env) {
-  for (const directory of (env.PATH || "").split(delimiter)) {
-    if (!directory) continue;
-    const candidate = join(directory, name);
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // Keep searching.
-    }
-  }
-  return null;
-}
-
-function parseArgs(argv) {
-  let profileName;
-  let verbose = false;
-  const message = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--profile") {
-      if (!argv[i + 1] || ["--", "--profile", "--verbose"].includes(argv[i + 1])) {
-        throw new Error("--profile requires a name");
-      }
-      profileName = argv[++i];
-    } else if (argv[i] === "--verbose") {
-      verbose = true;
-    } else if (argv[i] === "--") {
-      message.push(...argv.slice(i + 1));
-      break;
-    } else message.push(argv[i]);
-  }
-  return { profileName, verbose, message: message.join(" ") };
-}
-
-function run(command, args, { env, stdin, quiet = false }) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      env,
-      stdio: [stdin === undefined ? "ignore" : "pipe", quiet ? "ignore" : "inherit", "inherit"],
-    });
-    child.on("error", reject);
-    child.on("close", (code, signal) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${command} exited with ${signal || code}`));
-    });
-    if (stdin !== undefined) child.stdin.end(stdin);
-  });
-}
-
-try {
-  const parsed = parseArgs(process.argv.slice(2));
-  let message = parsed.message;
-  if (!message && !process.stdin.isTTY) message = readFileSync(0, "utf8").trimEnd();
-  if (!message) {
-    throw new Error("Usage: letta-message [--verbose] [--profile <name>] <message>");
-  }
-
-  const cwd = process.env.LETTA_MESSAGE_CWD || process.cwd();
-  const resolved = resolveProfile({ cwd, profileName: parsed.profileName });
-  const profile = resolved.profile;
-  const env = {
-    ...process.env,
-    LETTA_AGENT_ID: profile.agentId,
-    LETTA_ACP_BACKEND: profile.backend || "cloud-oauth",
-    LETTA_ACP_PERMISSION_MODE: profile.permissionMode || "standard",
-  };
-  delete env.LETTA_ACP_SERVER_COMMAND;
-  delete env.LETTA_ACP_SERVER_ARGS;
-  delete env.LETTA_ACP_SERVER_ARGS_JSON;
-  if (profile.server) {
-    env.LETTA_ACP_SERVER_COMMAND = profile.server.command;
-    env.LETTA_ACP_SERVER_ARGS_JSON = JSON.stringify(profile.server.args || []);
-  }
-
-  const configuredAcpx = process.env.ACPX_BIN;
-  const installedAcpx = executableOnPath("acpx");
-  const command = configuredAcpx || installedAcpx || "npx";
-  const prefix = configuredAcpx || installedAcpx
-    ? []
-    : ["-y", "--loglevel=error", "acpx"];
-  const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-  const agent = join(scriptDirectory, "letta-acp-server");
-
-  await run(command, [
-    ...prefix,
-    "--cwd", cwd,
-    agent,
-    "sessions", "ensure", "--name", resolved.sessionName,
-  ], { env, quiet: true });
-  await run(command, [
-    ...prefix,
-    "--cwd", cwd,
-    "--format", parsed.verbose ? "text" : "quiet",
-    agent,
-    "prompt", "--session", resolved.sessionName, "--file", "-",
-  ], { env, stdin: `${message}\n` });
-} catch (error) {
-  console.error(`letta-message: ${error.message}`);
+const skillPath = realpathSync(dirname(dirname(fileURLToPath(import.meta.url))));
+const child = spawn("letta-acp-bridge", ["message", ...process.argv.slice(2)], {
+  env: { ...process.env, LETTA_ACP_BRIDGE_SKILL_PATH: skillPath },
+  stdio: "inherit",
+});
+child.on("error", (error) => {
+  console.error(`letta-message: cannot run letta-acp-bridge: ${error.message}`);
   process.exitCode = 2;
-}
+});
+child.on("close", (code, signal) => {
+  if (signal) process.kill(process.pid, signal);
+  else process.exitCode = code ?? 1;
+});
