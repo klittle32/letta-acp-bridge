@@ -29,6 +29,86 @@ This project provides:
 
 See [Architecture](docs/ARCHITECTURE.md) and the [Pilot plan](docs/PILOT.md).
 
+## Quick start
+
+The first-use journey is: install the bridge, teach a coding harness how to use
+it, connect a persistent Letta agent, and then ask the harness to consult that
+agent naturally.
+
+### 1. Install the bridge
+
+Install the package globally with Node.js 22.19 or newer:
+
+```bash
+npm install --global letta-acp-bridge
+```
+
+### 2. Install the harness skill
+
+Install the portable skill to a location discovered by the coding harness. The
+common user-scoped location below is discovered by current Codex and Grok:
+
+```bash
+letta-acp-bridge skill install \
+  --target "$HOME/.agents/skills/communicating-with-letta"
+```
+
+See [Choose conversation boundaries](#choose-conversation-boundaries) before
+using a different path. Skill placement deliberately controls whether harnesses
+share or separate their Letta conversations.
+
+### 3. Connect a persistent Letta agent
+
+Run the interactive setup and provide a profile name and Letta agent ID:
+
+```bash
+letta-acp-bridge profile add
+```
+
+Choose user scope for a profile available everywhere or project scope for a
+repository-specific override. The profile name is the human-facing alias a user
+will name in requests to the coding harness. Mark the profile as the default if
+coding harnesses should use it without naming it each time. Profiles do not
+contain credentials; authentication remains in Letta's login or secret storage.
+
+### 4. Ask from a coding harness
+
+Ask in ordinary language. For a profile named `architecture-advisor`, for
+example:
+
+> Ask architecture-advisor to review this migration plan and tell me what I am
+> missing.
+
+A generic request can use the default profile instead:
+
+> Ask my Letta agent to review this migration plan.
+
+The harness discovers the skill, calls the stable wrapper, and returns the
+persistent Letta agent's reply. Generic requests such as “ask my Letta agent”
+use the configured default. When a request names an alias, the harness runs
+`letta-acp-bridge profile list`, matches the requested name case-insensitively
+when exactly one configured profile matches, and sends through
+`--profile <configured-name>`. Missing or ambiguous names are surfaced to the
+user instead of guessed. The harness does not hard-code agent names or query
+Letta to rediscover them for every message.
+
+A direct command is also available:
+
+```bash
+letta-acp-bridge message 'Review this migration plan.'
+```
+
+### 5. Continue the conversation
+
+From the same project directory and conversation scope, follow up naturally:
+
+> Tell my Letta agent I fixed the rollback issue and ask it to reconsider the
+> plan.
+
+The bridge resumes the existing ACPX conversation instead of starting a
+stateless request. The selected Letta agent also retains its own identity,
+memory, and tools.
+
 ## Install
 
 The package requires Node.js 22.19 or newer and supports global installation
@@ -64,20 +144,38 @@ Package installation itself does not write profiles, install skills, edit shell
 configuration, start services, or modify harness directories. Package upgrades
 do not rewrite previously installed skill copies.
 
-### Choose sharing or isolation
+### Choose conversation boundaries
 
-Skill placement is part of the conversation identity. Choose the pattern that
-matches the intended behavior:
+Skill placement is an intentional conversation-routing control. Supporting a
+common skill location as well as harness- and project-specific discovery paths
+lets each user decide how communication with Letta should be threaded rather
+than imposing one global behavior.
 
-**Share one conversation across harnesses:** install one canonical skill target
-that every harness discovers. For current Codex and Grok, the user-scoped
-`~/.agents/skills/communicating-with-letta` target above is sufficient. If a
-different harness needs its own discovery path and supports symlinks, link that
-path to the canonical target rather than making another copy. The skill wrapper
-resolves symlinks, so both paths report the same physical skill directory.
+The bridge's complete continuity key includes the package server command,
+absolute working directory, resolved profile, and real skill path. Skill
+placement controls the last part of that identity; sharing a skill path only
+shares a conversation when the working directory and resolved profile also
+match.
 
-**Keep harness conversations isolated:** install separate copies in each
-harness's supported skill directory. For example:
+Common patterns are:
+
+| Placement | Communication behavior |
+| --- | --- |
+| One common user-scoped skill discovered by multiple harnesses | One shared Letta conversation across harnesses when they operate in the same project with the same profile. A review started in Codex can be continued in Grok. |
+| One common project-scoped skill | A shared conversation surface for harnesses in that project, while other project directories remain separate. |
+| Separate harness-specific skill copies | Separate conversations for each harness, even in the same project with the same profile. This is useful when each coding agent should maintain its own thread with Letta. |
+| Separate harness-and-project skill copies | Project-specific conversations further partitioned by harness, useful when both repository context and coding-agent role should remain isolated. |
+
+For the shared pattern, install one canonical skill target that every harness
+discovers. Current Codex and Grok both discover
+`~/.agents/skills/communicating-with-letta`. If another harness requires a
+different discovery path and supports symlinks, link that path to the canonical
+target rather than making another copy. The wrapper resolves symlinks, so each
+path reports the same physical skill directory.
+
+For isolation, install separate copies in each harness's supported user- or
+project-scoped directory. For example, these project-local copies create
+harness-specific threads:
 
 ```bash
 letta-acp-bridge skill install \

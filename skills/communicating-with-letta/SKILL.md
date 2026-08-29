@@ -37,15 +37,42 @@ missing, return the setup command from the error.
 
 ## Communicate
 
-Send a short message as an argument:
+Treat each configured profile name as the human-facing alias for its Letta
+recipient. Do not hard-code agent names. Do not query Letta to rediscover the
+agent for each message.
+
+When the request names a recipient, resolve it from the current working
+directory before sending:
 
 ```bash
-<skill-directory>/scripts/letta-message --profile <name> 'message text'
+letta-acp-bridge profile list
 ```
 
-Omit `--profile` when a default profile is configured. The resolved profile
-name and fingerprint select the ACPX session, so changed project overrides do
-not resume a conversation created for another Letta target.
+Match the requested name to the listed profile names case-insensitively when
+exactly one configured profile matches. Preserve the configured spelling and
+send with `--profile <configured-name>`:
+
+```bash
+<skill-directory>/scripts/letta-message \
+  --profile <configured-name> \
+  'message text'
+```
+
+A generic request such as “ask my Letta agent” should use the configured default
+by omitting `--profile`:
+
+```bash
+<skill-directory>/scripts/letta-message 'message text'
+```
+
+If a named recipient is missing or ambiguous, surface that result and the
+configured profile names instead of guessing. If a generic request has no
+default, surface the configuration error. Do not silently run setup during an
+ordinary message attempt.
+
+The resolved profile name and fingerprint select the ACPX session, so changed
+project overrides do not resume a conversation created for another Letta
+target.
 
 For multiline content, pipe it through stdin:
 
