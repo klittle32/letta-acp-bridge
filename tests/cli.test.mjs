@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   symlinkSync,
   writeFileSync,
@@ -138,9 +139,9 @@ test("installed skill wrapper forwards messages and preserves its canonical scop
   const target = join(temp, "installed-skill");
   const configRoot = join(temp, "config");
   const projectRoot = join(temp, "project");
-  const log = join(temp, "acpx.jsonl");
-  const acpx = join(temp, "acpx-mock");
-  const acpxScript = join(temp, "acpx-mock.mjs");
+  const stateDir = join(temp, ".acpx", "sessions");
+  const serverLog = join(temp, "server.jsonl");
+  const server = join(temp, "fake-acp-server.mjs");
   mkdirSync(projectRoot, { recursive: true });
   mkdirSync(join(configRoot, "letta-acp-bridge"), { recursive: true });
   writeFileSync(
@@ -148,23 +149,39 @@ test("installed skill wrapper forwards messages and preserves its canonical scop
     `${JSON.stringify({
       version: 1,
       defaultProfile: "johnny5",
-      profiles: { johnny5: { agentId: "agent-johnny5" } },
+      profiles: {
+        johnny5: {
+          agentId: "agent-johnny5",
+          server: { command: process.execPath, args: [server] },
+        },
+      },
     })}\n`,
   );
   run(["skill", "install", "--target", target]);
-  writeFileSync(acpxScript, `import { appendFileSync } from "node:fs";
-let stdin = "";
-process.stdin.setEncoding("utf8");
-for await (const chunk of process.stdin) stdin += chunk;
-appendFileSync(process.env.ACPX_TEST_LOG, JSON.stringify({
-  args: process.argv.slice(2),
-  stdin,
-  skillPath: process.env.LETTA_ACP_BRIDGE_SKILL_PATH,
-}) + "\\n");
-if (process.argv.includes("prompt")) process.stdout.write("WINDOWS_WRAPPER_OK\\n");
+  writeFileSync(server, `import { appendFileSync } from "node:fs";
+import { createInterface } from "node:readline";
+const log = (value) => appendFileSync(process.env.ACP_SERVER_TEST_LOG,
+  JSON.stringify({ ...value, skillPath: process.env.LETTA_ACP_BRIDGE_SKILL_PATH }) + "\\n");
+const send = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+for await (const line of createInterface({ input: process.stdin })) {
+  const request = JSON.parse(line);
+  log({ method: request.method, params: request.params });
+  if (request.method === "initialize") send({ jsonrpc: "2.0", id: request.id, result: {
+    protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [],
+  } });
+  else if (request.method === "session/new") send({ jsonrpc: "2.0", id: request.id, result: {
+    sessionId: "fake-session", modes: { currentModeId: "standard", availableModes: [] },
+  } });
+  else if (request.method === "session/prompt") {
+    send({ jsonrpc: "2.0", method: "session/update", params: {
+      sessionId: "fake-session", update: {
+        sessionUpdate: "agent_message_chunk", content: { type: "text", text: "WINDOWS_WRAPPER_OK\\n" },
+      },
+    } });
+    send({ jsonrpc: "2.0", id: request.id, result: { stopReason: "end_turn" } });
+  }
+}
 `);
-  writeFileSync(acpx, `#!/bin/sh\nexec "$ACPX_TEST_NODE" "$ACPX_TEST_SCRIPT" "$@"\n`);
-  execFileSync("chmod", ["+x", acpx]);
 
   const result = spawnSync(process.execPath, [
     join(target, "scripts", "letta-message"),
@@ -175,20 +192,24 @@ if (process.argv.includes("prompt")) process.stdout.write("WINDOWS_WRAPPER_OK\\n
     env: {
       ...process.env,
       XDG_CONFIG_HOME: configRoot,
-      ACPX_BIN: acpx,
-      ACPX_TEST_NODE: process.execPath,
-      ACPX_TEST_SCRIPT: acpxScript,
-      ACPX_TEST_LOG: log,
+      ACPX_STATE_DIR: stateDir,
+      ACP_SERVER_TEST_LOG: serverLog,
     },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, "WINDOWS_WRAPPER_OK\n");
   assert.equal(result.stderr, "");
-  const calls = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].stdin, "hello from Windows\n");
-  assert.equal(calls[0].skillPath, realpathSync(target));
-  assert.equal(calls[1].skillPath, realpathSync(target));
+  const calls = readFileSync(serverLog, "utf8").trim().split("\n").map(JSON.parse);
+  const prompt = calls.find((call) => call.method === "session/prompt");
+  assert.equal(prompt.params.prompt[0].text, "hello from Windows");
+  assert.equal(calls.every((call) => call.skillPath === realpathSync(target)), true);
+  const sessionsDir = join(stateDir, "sessions");
+  const records = readdirSync(sessionsDir)
+    .filter((name) => name.endsWith(".json"));
+  assert.equal(records.length, 1);
+  const record = JSON.parse(readFileSync(join(sessionsDir, records[0]), "utf8"));
+  assert.deepEqual(record.agent_argv.slice(0, 1), [process.execPath]);
+  assert.match(record.agent_argv[1], /bin\/letta-acp-server\.js$/);
 });
 
 test("symlinked harness installs report one shared canonical skill scope", () => {

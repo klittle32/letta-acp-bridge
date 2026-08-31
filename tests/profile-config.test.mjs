@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 
 import { resolveProfile } from "../src/profile-config.mjs";
-import { acpxInvocation, lettaAcpInvocation } from "../src/runtime.mjs";
+import { acpxAgentInvocation, acpxInvocation, lettaAcpInvocation } from "../src/runtime.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const messageBin = join(root, "bin", "letta-message.js");
@@ -245,6 +245,14 @@ test("message resolves the pinned package-local ACPX entry without npx", () => {
   assert.equal(invocation.args.length, 1);
   assert.match(invocation.args[0], /node_modules\/acpx\/dist\/cli\.js$/);
   assert.equal(invocation.args.includes("npx"), false);
+});
+
+test("message gives ACPX a structured Node argv for the bridge server", () => {
+  const invocation = acpxAgentInvocation();
+  assert.deepEqual(invocation.argv.slice(0, 1), [process.execPath]);
+  assert.equal(invocation.argv.length, 2);
+  assert.match(invocation.argv[1], /bin\/letta-acp-server\.js$/);
+  assert.equal(invocation.argv.join(" ").startsWith(`${process.execPath} `), true);
 });
 
 test("server resolves the pinned package-local letta-acp ESM entry", () => {

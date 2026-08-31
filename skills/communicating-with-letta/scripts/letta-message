@@ -9,7 +9,8 @@ const skillPath = realpathSync(dirname(dirname(fileURLToPath(import.meta.url))))
 process.env.LETTA_ACP_BRIDGE_SKILL_PATH = skillPath;
 
 try {
-  await sendMessage(process.argv.slice(2));
+  const result = await sendMessage(process.argv.slice(2));
+  if (result?.exitAfterMessage) process.exit(0);
 } catch (error) {
   console.error(`letta-acp-bridge: ${error.message}`);
   process.exitCode = 2;
