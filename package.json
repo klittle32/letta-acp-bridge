@@ -1,6 +1,6 @@
 {
   "name": "letta-acp-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portable CLI and harness skill for communicating with persistent Letta agents through ACPX.",
   "type": "module",
   "license": "MIT",
