@@ -1,20 +1,16 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sendMessage } from "../../../src/message.mjs";
 
 const skillPath = realpathSync(dirname(dirname(fileURLToPath(import.meta.url))));
-const child = spawn("letta-acp-bridge", ["message", ...process.argv.slice(2)], {
-  env: { ...process.env, LETTA_ACP_BRIDGE_SKILL_PATH: skillPath },
-  stdio: "inherit",
-});
-child.on("error", (error) => {
-  console.error(`letta-message: cannot run letta-acp-bridge: ${error.message}`);
+process.env.LETTA_ACP_BRIDGE_SKILL_PATH = skillPath;
+
+try {
+  await sendMessage(process.argv.slice(2));
+} catch (error) {
+  console.error(`letta-acp-bridge: ${error.message}`);
   process.exitCode = 2;
-});
-child.on("close", (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exitCode = code ?? 1;
-});
+}

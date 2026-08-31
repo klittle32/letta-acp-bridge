@@ -7,8 +7,9 @@ description: Communicates with a configured persistent Letta agent through the b
 
 Use `<skill-directory>/scripts/letta-message` rather than raw `acpx`, `npx`,
 `letta -p`, or direct adapter commands. The thin script calls the installed
-`letta-acp-bridge` package and supplies this skill's canonical target path. Run
-it from the current working directory. A shared skill target therefore supports
+package's shared JavaScript message implementation directly and supplies this
+skill's canonical target path. It does not invoke an npm command shim. Run it
+from the current working directory. A shared skill target therefore supports
 cross-harness continuity for the same working directory and resolved profile,
 while separate copied skills remain isolated. Concurrent calls to one shared
 conversation may interleave, so do not send them concurrently when order
@@ -91,8 +92,10 @@ On success, ordinary stdout contains only the Letta agent's reply; failures
 remain visible on stderr. When transport details are needed for diagnosis, add
 `--verbose` to the same command rather than reconstructing the ACPX invocation.
 
-If `letta-acp-bridge` is unavailable, report that the package CLI is not on
-`PATH`. Do not replace it with `npx` or download another copy implicitly.
+The message script imports the installed package implementation directly and
+does not require the `letta-acp-bridge` command shim on `PATH`. If a separate
+profile-list or setup command is unavailable, report that the package CLI is
+not on `PATH`. Do not replace it with `npx` or download another copy implicitly.
 
 If ACPX reports that it cannot prepare `~/.acpx/queues` or another path under
 `~/.acpx` because of `EPERM`, the restricted harness is blocking ACPX's queue

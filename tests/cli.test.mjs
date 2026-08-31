@@ -95,36 +95,100 @@ test("skill path prints the bundled canonical skill directory", () => {
   );
 });
 
-test("installed skill is a thin wrapper that reports its canonical target scope", () => {
-  const temp = mkdtempSync(join(tmpdir(), "letta-cli-wrapper-"));
+test("installed skill wrapper runs without resolving npm command shims", () => {
+  const temp = mkdtempSync(join(tmpdir(), "letta-cli-wrapper-shim-"));
   const target = join(temp, "installed-skill");
   const bin = join(temp, "bin");
-  const log = join(temp, "wrapper.json");
   mkdirSync(bin, { recursive: true });
   run(["skill", "install", "--target", target]);
-  const fakeCli = join(bin, "letta-acp-bridge");
-  writeFileSync(fakeCli, `#!/usr/bin/env node
-import { writeFileSync } from "node:fs";
-writeFileSync(process.env.WRAPPER_LOG, JSON.stringify({
-  args: process.argv.slice(2),
-  skillPath: process.env.LETTA_ACP_BRIDGE_SKILL_PATH,
-}));
-`);
-  execFileSync("chmod", ["+x", fakeCli]);
+  writeFileSync(join(bin, "letta-acp-bridge.cmd"), "@echo off\r\nexit /b 91\r\n");
 
-  execFileSync(join(target, "scripts", "letta-message"), [
-    "--profile", "johnny5", "hello",
+  const result = spawnSync(process.execPath, [
+    join(target, "scripts", "letta-message"), "--help",
   ], {
+    encoding: "utf8",
+    env: { ...process.env, PATH: bin },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^Usage: letta-acp-bridge message /);
+  assert.equal(result.stderr, "");
+});
+
+test("installed skill wrapper preserves message error reporting and exit status", () => {
+  const temp = mkdtempSync(join(tmpdir(), "letta-cli-wrapper-error-"));
+  const target = join(temp, "installed-skill");
+  const configRoot = join(temp, "config");
+  run(["skill", "install", "--target", target]);
+
+  const result = spawnSync(process.execPath, [
+    join(target, "scripts", "letta-message"), "hello",
+  ], {
+    encoding: "utf8",
+    env: { ...process.env, XDG_CONFIG_HOME: configRoot },
+  });
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /^letta-acp-bridge: No Letta profile selected\./);
+});
+
+test("installed skill wrapper forwards messages and preserves its canonical scope", () => {
+  const temp = mkdtempSync(join(tmpdir(), "letta-cli-wrapper-"));
+  const target = join(temp, "installed-skill");
+  const configRoot = join(temp, "config");
+  const projectRoot = join(temp, "project");
+  const log = join(temp, "acpx.jsonl");
+  const acpx = join(temp, "acpx-mock");
+  const acpxScript = join(temp, "acpx-mock.mjs");
+  mkdirSync(projectRoot, { recursive: true });
+  mkdirSync(join(configRoot, "letta-acp-bridge"), { recursive: true });
+  writeFileSync(
+    join(configRoot, "letta-acp-bridge", "config.json"),
+    `${JSON.stringify({
+      version: 1,
+      defaultProfile: "johnny5",
+      profiles: { johnny5: { agentId: "agent-johnny5" } },
+    })}\n`,
+  );
+  run(["skill", "install", "--target", target]);
+  writeFileSync(acpxScript, `import { appendFileSync } from "node:fs";
+let stdin = "";
+process.stdin.setEncoding("utf8");
+for await (const chunk of process.stdin) stdin += chunk;
+appendFileSync(process.env.ACPX_TEST_LOG, JSON.stringify({
+  args: process.argv.slice(2),
+  stdin,
+  skillPath: process.env.LETTA_ACP_BRIDGE_SKILL_PATH,
+}) + "\\n");
+if (process.argv.includes("prompt")) process.stdout.write("WINDOWS_WRAPPER_OK\\n");
+`);
+  writeFileSync(acpx, `#!/bin/sh\nexec "$ACPX_TEST_NODE" "$ACPX_TEST_SCRIPT" "$@"\n`);
+  execFileSync("chmod", ["+x", acpx]);
+
+  const result = spawnSync(process.execPath, [
+    join(target, "scripts", "letta-message"),
+    "--profile", "johnny5", "hello", "from", "Windows",
+  ], {
+    cwd: projectRoot,
+    encoding: "utf8",
     env: {
       ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
-      WRAPPER_LOG: log,
+      XDG_CONFIG_HOME: configRoot,
+      ACPX_BIN: acpx,
+      ACPX_TEST_NODE: process.execPath,
+      ACPX_TEST_SCRIPT: acpxScript,
+      ACPX_TEST_LOG: log,
     },
   });
-  assert.deepEqual(JSON.parse(readFileSync(log, "utf8")), {
-    args: ["message", "--profile", "johnny5", "hello"],
-    skillPath: realpathSync(target),
-  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "WINDOWS_WRAPPER_OK\n");
+  assert.equal(result.stderr, "");
+  const calls = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].stdin, "hello from Windows\n");
+  assert.equal(calls[0].skillPath, realpathSync(target));
+  assert.equal(calls[1].skillPath, realpathSync(target));
 });
 
 test("symlinked harness installs report one shared canonical skill scope", () => {
@@ -132,34 +196,49 @@ test("symlinked harness installs report one shared canonical skill scope", () =>
   const target = join(temp, "canonical-skill");
   const codexTarget = join(temp, "codex", "communicating-with-letta");
   const grokTarget = join(temp, "grok", "communicating-with-letta");
-  const bin = join(temp, "bin");
-  const log = join(temp, "wrapper.jsonl");
-  mkdirSync(bin, { recursive: true });
+  const configRoot = join(temp, "config");
+  const log = join(temp, "acpx.jsonl");
+  const acpx = join(temp, "acpx-mock");
+  const acpxScript = join(temp, "acpx-mock.mjs");
   mkdirSync(join(temp, "codex"), { recursive: true });
   mkdirSync(join(temp, "grok"), { recursive: true });
+  mkdirSync(join(configRoot, "letta-acp-bridge"), { recursive: true });
+  writeFileSync(
+    join(configRoot, "letta-acp-bridge", "config.json"),
+    `${JSON.stringify({
+      version: 1,
+      defaultProfile: "johnny5",
+      profiles: { johnny5: { agentId: "agent-johnny5" } },
+    })}\n`,
+  );
   run(["skill", "install", "--target", target]);
   symlinkSync(target, codexTarget);
   symlinkSync(target, grokTarget);
-  const fakeCli = join(bin, "letta-acp-bridge");
-  writeFileSync(fakeCli, `#!/usr/bin/env node
-import { appendFileSync } from "node:fs";
-appendFileSync(process.env.WRAPPER_LOG, process.env.LETTA_ACP_BRIDGE_SKILL_PATH + "\\n");
+  writeFileSync(acpxScript, `import { appendFileSync } from "node:fs";
+appendFileSync(process.env.ACPX_TEST_LOG, process.env.LETTA_ACP_BRIDGE_SKILL_PATH + "\\n");
 `);
-  execFileSync("chmod", ["+x", fakeCli]);
+  writeFileSync(acpx, `#!/bin/sh\nexec "$ACPX_TEST_NODE" "$ACPX_TEST_SCRIPT" "$@"\n`);
+  execFileSync("chmod", ["+x", acpx]);
 
   for (const harnessTarget of [codexTarget, grokTarget]) {
-    execFileSync(join(harnessTarget, "scripts", "letta-message"), ["hello"], {
+    execFileSync(process.execPath, [join(harnessTarget, "scripts", "letta-message"), "hello"], {
       env: {
         ...process.env,
-        PATH: `${bin}:${process.env.PATH}`,
-        WRAPPER_LOG: log,
+        XDG_CONFIG_HOME: configRoot,
+        ACPX_BIN: acpx,
+        ACPX_TEST_NODE: process.execPath,
+        ACPX_TEST_SCRIPT: acpxScript,
+        ACPX_TEST_LOG: log,
       },
     });
   }
 
   assert.deepEqual(
     readFileSync(log, "utf8").trim().split("\n"),
-    [realpathSync(target), realpathSync(target)],
+    [
+      realpathSync(target), realpathSync(target),
+      realpathSync(target), realpathSync(target),
+    ],
   );
 });
 
