@@ -5,10 +5,22 @@ import test from "node:test";
 
 const root = resolve(import.meta.dirname, "..");
 const readme = readFileSync(resolve(root, "README.md"), "utf8");
+const packageManifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
+const pilot = readFileSync(resolve(root, "docs", "PILOT.md"), "utf8");
 const skill = readFileSync(
   resolve(root, "skills", "communicating-with-letta", "SKILL.md"),
   "utf8",
 );
+
+test("release metadata pins ACPX 0.16.0 consistently", () => {
+  assert.equal(packageManifest.dependencies.acpx, "0.16.0");
+  assert.equal(packageLock.version, packageManifest.version);
+  assert.equal(packageLock.packages[""].version, packageManifest.version);
+  assert.equal(packageLock.packages[""].dependencies.acpx, packageManifest.dependencies.acpx);
+  assert.equal(packageLock.packages["node_modules/acpx"].version, packageManifest.dependencies.acpx);
+  assert.match(pilot, /pins ACPX 0\.16\.0\./);
+});
 
 test("README presents the first-use journey in order", () => {
   const steps = [
