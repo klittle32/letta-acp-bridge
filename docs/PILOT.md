@@ -78,5 +78,5 @@ The pilot succeeds when:
 - a changed resolved profile cannot resume the old target's conversation; and
 - no credentials are written to profile configuration.
 
-The packaged implementation pins ACPX 0.16.0. Registry publication remains a
+The packaged implementation pins ACPX 0.17.0. Registry publication remains a
 separate release step.
