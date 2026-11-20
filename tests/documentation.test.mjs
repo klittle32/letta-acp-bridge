@@ -13,14 +13,14 @@ const skill = readFileSync(
   "utf8",
 );
 
-test("release metadata pins ACPX 0.19.3 consistently", () => {
-  assert.equal(packageManifest.version, "0.1.7");
-  assert.equal(packageManifest.dependencies.acpx, "0.19.3");
+test("release metadata pins ACPX 0.22.0 consistently", () => {
+  assert.equal(packageManifest.version, "0.1.8");
+  assert.equal(packageManifest.dependencies.acpx, "0.22.0");
   assert.equal(packageLock.version, packageManifest.version);
   assert.equal(packageLock.packages[""].version, packageManifest.version);
   assert.equal(packageLock.packages[""].dependencies.acpx, packageManifest.dependencies.acpx);
   assert.equal(packageLock.packages["node_modules/acpx"].version, packageManifest.dependencies.acpx);
-  assert.match(pilot, /pins ACPX 0\.19\.3\./);
+  assert.match(pilot, /pins ACPX 0\.22\.0\./);
 });
 
 test("README presents the first-use journey in order", () => {
